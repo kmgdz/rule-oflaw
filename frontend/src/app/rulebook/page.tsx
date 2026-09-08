@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { readRuleOfLaw, writeRuleOfLaw } from "@/lib/genlayerClient";
-import { getOrCreateBurnerAccount } from "@/lib/wallet";
+import { getActiveAccount } from "@/lib/wallet";
 import type { Rule } from "@/lib/types";
 
 const STATUS_STYLE: Record<Rule["status"], string> = {
@@ -38,7 +38,7 @@ export default function RulebookPage() {
     setBusy(true);
     setError(null);
     try {
-      const account = getOrCreateBurnerAccount();
+      const account = getActiveAccount();
       await writeRuleOfLaw(account, "propose_rule", [proposalText]);
       setProposalText("");
       await refresh();
@@ -53,7 +53,7 @@ export default function RulebookPage() {
     setBusy(true);
     setError(null);
     try {
-      const account = getOrCreateBurnerAccount();
+      const account = getActiveAccount();
       await writeRuleOfLaw(account, "vote_rule", [BigInt(ruleId)]);
       await refresh();
     } catch (err) {
@@ -67,7 +67,7 @@ export default function RulebookPage() {
     setBusy(true);
     setError(null);
     try {
-      const account = getOrCreateBurnerAccount();
+      const account = getActiveAccount();
       await writeRuleOfLaw(account, "finalize_rule", [BigInt(ruleId), BigInt(1)]);
       await refresh();
     } catch (err) {

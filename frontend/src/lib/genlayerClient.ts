@@ -1,7 +1,6 @@
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import type { Account, Address } from "viem";
-import { getOrCreateBurnerAccount } from "./wallet";
 
 /**
  * Set this after deploying contracts/rule_of_law.py in GenLayer Studio.
@@ -11,26 +10,24 @@ import { getOrCreateBurnerAccount } from "./wallet";
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ??
   "0x0D9E8a769432b4A07182147fDcaFF41e93d4d93C") as Address;
 
+/**
+ * Read-only client. Per GenLayer's own docs: "Public view methods read
+ * Intelligent Contract state without submitting a consensus transaction.
+ * They do not need a transaction fee or signing account." No account is
+ * ever attached here, by design.
+ */
 export const client = createClient({ chain: studionet });
 
 /**
  * Thin wrapper around readContract for our contract's view methods.
  * `args` order must match the Python method signature exactly.
- *
- * Importantly, this attaches the burner wallet's address as the sender
- * even for read calls. Leaving it unset causes genlayer-js to default
- * the sender to the zero address (0x000...000), which GenLayer's network
- * rejects outright with a generic "missing or invalid parameters" error
- * — for every method, regardless of arguments.
  */
 export async function readRuleOfLaw<T = unknown>(
   functionName: string,
   args: (string | number | boolean | bigint)[] = []
 ): Promise<T> {
-  const account = typeof window !== "undefined" ? getOrCreateBurnerAccount() : undefined;
   return client.readContract({
     address: CONTRACT_ADDRESS,
-    account,
     functionName,
     args,
   }) as Promise<T>;
@@ -38,23 +35,32 @@ export async function readRuleOfLaw<T = unknown>(
 
 /**
  * Thin wrapper around writeContract + waitForTransactionReceipt for our
- * contract's write methods. Returns the finalized receipt once consensus
- * settles. The method's own return value is NOT reliably decoded here —
- * callers should re-read contract state (e.g. get_rulings_count) after
- * this resolves rather than trying to parse the receipt directly.
+ * contract's write methods.
+ *
+ * `account` can be either:
+ *  - a local signer Account (e.g. the burner wallet) -> signs locally, or
+ *  - a plain address string (a connected external wallet) -> genlayer-js
+ *    automatically delegates every signing request to window.ethereum,
+ *    which pops up MetaMask/Rabby exactly like any other dApp.
+ *
+ * Because that delegation is configured when the client is created (not
+ * per-call), a fresh client is created here bound to whichever account
+ * is currently active, rather than reusing the shared read-only client.
  */
 export async function writeRuleOfLaw(
-  account: Account,
+  account: Account | string,
   functionName: string,
   args: (string | number | boolean | bigint)[] = []
 ) {
-  const txHash = await client.writeContract({
+  const writeClient = createClient({ chain: studionet, account } as never);
+
+  const txHash = await writeClient.writeContract({
     account,
     address: CONTRACT_ADDRESS,
     functionName,
     args,
     value: BigInt(0),
-  });
+  } as never);
 
-  return client.waitForTransactionReceipt({ hash: txHash });
+  return writeClient.waitForTransactionReceipt({ hash: txHash });
 }

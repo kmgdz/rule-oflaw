@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
-import { getOrCreateBurnerAccount } from "@/lib/wallet";
+import {
+  getOrCreateBurnerAccount,
+  getConnectedExternalWallet,
+  connectExternalWallet,
+  disconnectExternalWallet,
+} from "@/lib/wallet";
 
 const NAV = [
   { href: "/", label: "The Docket" },
@@ -16,16 +21,40 @@ function shortenAddress(address: string) {
 }
 
 export function Header() {
-  const [address, setAddress] = useState<string | null>(null);
+  const [burnerAddress, setBurnerAddress] = useState<string | null>(null);
+  const [externalAddress, setExternalAddress] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const account = getOrCreateBurnerAccount();
-      setAddress((account as { address: string }).address);
+      setBurnerAddress((account as { address: string }).address);
     } catch {
-      // Ignore — address badge is a nice-to-have, not load-bearing.
+      // Address badge is a nice-to-have, not load-bearing.
     }
+    setExternalAddress(getConnectedExternalWallet());
   }, []);
+
+  async function handleConnect() {
+    setConnecting(true);
+    setError(null);
+    try {
+      const address = await connectExternalWallet();
+      setExternalAddress(address);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function handleDisconnect() {
+    disconnectExternalWallet();
+    setExternalAddress(null);
+  }
+
+  const activeAddress = externalAddress ?? burnerAddress;
 
   return (
     <header className="border-b border-hairline">
@@ -41,16 +70,45 @@ export function Header() {
               </Link>
             ))}
           </nav>
-          {address && (
-            <span
-              className="rounded-sm border border-hairline px-2.5 py-1 font-mono text-xs text-ink-muted"
-              title={address}
-            >
-              {shortenAddress(address)}
-            </span>
-          )}
+
+          <div className="flex items-center gap-2">
+            {activeAddress && (
+              <span
+                className="rounded-sm border border-hairline px-2.5 py-1 font-mono text-xs text-ink-muted"
+                title={
+                  externalAddress
+                    ? `Connected wallet: ${activeAddress}`
+                    : `Burner wallet (auto-generated): ${activeAddress}`
+                }
+              >
+                {shortenAddress(activeAddress)}
+              </span>
+            )}
+
+            {externalAddress ? (
+              <button
+                onClick={handleDisconnect}
+                className="font-sans text-xs text-ink-muted hover:text-ink underline decoration-hairline underline-offset-2"
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                onClick={handleConnect}
+                disabled={connecting}
+                className="font-sans text-xs text-ink-muted hover:text-ink underline decoration-hairline underline-offset-2 disabled:opacity-50"
+              >
+                {connecting ? "Connecting…" : "Connect wallet"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      {error && (
+        <div className="mx-auto max-w-5xl px-6 pb-3">
+          <p className="font-sans text-xs text-verdict-violation">{error}</p>
+        </div>
+      )}
     </header>
   );
 }

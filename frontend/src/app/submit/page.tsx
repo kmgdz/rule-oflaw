@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { readRuleOfLaw, writeRuleOfLaw } from "@/lib/genlayerClient";
-import { getOrCreateBurnerAccount } from "@/lib/wallet";
+import { getActiveAccount } from "@/lib/wallet";
 
 type Stage = "idle" | "pending" | "error";
 
@@ -21,7 +21,7 @@ export default function SubmitPage() {
     setError(null);
 
     try {
-      const account = getOrCreateBurnerAccount();
+      const account = getActiveAccount();
       await writeRuleOfLaw(account, "submit_content", [content]);
       // The write finalized; the new ruling is the last one in the log.
       const count = await readRuleOfLaw<bigint>("get_rulings_count", []);

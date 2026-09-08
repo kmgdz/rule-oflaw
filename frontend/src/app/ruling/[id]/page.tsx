@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { readRuleOfLaw, writeRuleOfLaw } from "@/lib/genlayerClient";
-import { getOrCreateBurnerAccount } from "@/lib/wallet";
+import { getActiveAccount } from "@/lib/wallet";
 import { VerdictBadge } from "@/components/VerdictBadge";
 import type { Ruling } from "@/lib/types";
 
@@ -34,7 +34,7 @@ export default function RulingDetailPage({ params }: { params: { id: string } })
     setBusy(true);
     setError(null);
     try {
-      const account = getOrCreateBurnerAccount();
+      const account = getActiveAccount();
       await writeRuleOfLaw(account, "appeal", [BigInt(rulingId), appealReason]);
       // The write finalized; the new appeal ruling is the last one in the log.
       const count = await readRuleOfLaw<bigint>("get_rulings_count", []);
